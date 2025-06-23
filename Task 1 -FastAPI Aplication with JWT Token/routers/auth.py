@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Form, Depends
+from fastapi import APIRouter, HTTPException, Form, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 import jwt
@@ -7,6 +7,7 @@ import uuid
 import re
 import os
 from dotenv import load_dotenv
+from throttling import limiter, AUTH_RATE_LIMIT
 
 from conv_ret_db import SessionLocal, UserRegistry
 from schemas import TokenData, UserCreate, UserResponse, LoginResponse
@@ -23,11 +24,9 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_TIME_MINUTES = 60
 
 def generate_unique_chatbot_id():
-    """Generate a unique chatbot ID using UUID"""
     return f"chatbot_{uuid.uuid4().hex[:16]}"
 
 def create_access_token(data: dict):
-    """Create JWT access token"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_TIME_MINUTES)
     to_encode.update({"exp": expire})
@@ -35,7 +34,9 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 @router.post("/signup", response_model=UserResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
 async def signup(
+    request: Request,
     username: str = Form(...),
     email: str = Form(...),
     password: str = Form(...)
@@ -76,7 +77,12 @@ async def signup(
         session.close()
 
 @router.post("/login", response_model=LoginResponse)
-async def login(email: str = Form(...), password: str = Form(...)):
+@limiter.limit(AUTH_RATE_LIMIT)
+async def login(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...)
+):
     session = SessionLocal()
     try:
         user = session.query(UserRegistry).filter_by(email=email).first()
