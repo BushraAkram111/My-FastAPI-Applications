@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from conv_ret_db import SessionLocal, ConversationChatHistory, UserRegistry
 from dependencies import verify_token
 from schemas import Conversation, ConversationList
+from throttling import limiter, DEFAULT_RATE_LIMIT
 
 router = APIRouter()
 
 @router.get("/profile")
-async def get_user_profile(auth_data: dict = Depends(verify_token)):
+@limiter.limit(DEFAULT_RATE_LIMIT)
+async def get_user_profile(
+    request: Request,
+    auth_data: dict = Depends(verify_token)
+):
     session = SessionLocal()
     try:
         user = session.query(UserRegistry).filter_by(id=auth_data["user_id"]).first()
@@ -24,7 +29,9 @@ async def get_user_profile(auth_data: dict = Depends(verify_token)):
         session.close()
 
 @router.get("/conversations", response_model=ConversationList)
+@limiter.limit(DEFAULT_RATE_LIMIT)
 async def get_user_conversations(
+    request: Request,
     auth_data: dict = Depends(verify_token),
     limit: int = 10,
     offset: int = 0
