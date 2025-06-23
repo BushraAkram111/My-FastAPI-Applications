@@ -1,8 +1,9 @@
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 import tempfile
 import os
 from typing import List
+from throttling import limiter, UPLOAD_RATE_LIMIT, DEFAULT_RATE_LIMIT
 
 from conv_ret_db import SessionLocal, ConversationChatHistory
 from utils import QdrantInsertRetrievalAll
@@ -18,9 +19,11 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=os.getenv(
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 @router.post("/upload-files/")
+@limiter.limit(UPLOAD_RATE_LIMIT)
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = File(...), 
-    auth_data: dict = Depends(verify_token)  # JWT authentication
+    auth_data: dict = Depends(verify_token)
 ):
     chatbot_id = auth_data["chatbot_id"]
     try:
@@ -63,10 +66,12 @@ async def upload_files(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @router.post("/ask/")
+@limiter.limit(DEFAULT_RATE_LIMIT)
 async def ask_question(
+    request: Request,
     question: str = Form(...),
-    file_name: str = Form(None),  # Made file_name optional
-    auth_data: dict = Depends(verify_token)  # JWT authentication
+    file_name: str = Form(None),
+    auth_data: dict = Depends(verify_token)
 ):
     chatbot_id = auth_data["chatbot_id"]
     session = SessionLocal()
