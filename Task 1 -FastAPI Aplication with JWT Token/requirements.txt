@@ -16,3 +16,5 @@ langchain-qdrant==0.0.1
 PyMuPDF==1.23.19
 unstructured[docx]==0.11.8
 pydantic==2.5.2
+slowapi==0.1.7
+redis==4.6.0
